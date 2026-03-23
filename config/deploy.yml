@@ -1,0 +1,10 @@
+services:
+  - name: ecs-dashboard
+    repository: your-org/ecs-dashboard  # GitHub リポジトリ名に変更してください
+    cluster: your-cluster               # ECS クラスター名に変更してください
+    task_definition: config/deploy/app.yml
+    desired_count: 1
+    # デプロイ時のビルド設定
+    build:
+      context: .
+      dockerfile: Dockerfile

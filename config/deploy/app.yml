@@ -1,0 +1,34 @@
+# ECS タスク定義（genova 形式）
+# AWS リソース ARN などは環境に合わせて変更してください
+
+family: ecs-dashboard
+cpu: "256"
+memory: "512"
+network_mode: awsvpc
+requires_compatibilities:
+  - FARGATE
+
+# ECS タスクロール（ECS API 操作権限を付与）
+task_role_arn: arn:aws:iam::YOUR_ACCOUNT_ID:role/ecs-dashboard-task-role
+
+# ECS タスク実行ロール
+execution_role_arn: arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole
+
+container_definitions:
+  - name: app
+    image: YOUR_ACCOUNT_ID.dkr.ecr.ap-northeast-1.amazonaws.com/ecs-dashboard:latest
+    essential: true
+    port_mappings:
+      - container_port: 3000
+        protocol: tcp
+    environment:
+      - name: AWS_REGION
+        value: ap-northeast-1
+      - name: NODE_ENV
+        value: production
+    log_configuration:
+      log_driver: awslogs
+      options:
+        awslogs-group: /ecs/ecs-dashboard
+        awslogs-region: ap-northeast-1
+        awslogs-stream-prefix: ecs
