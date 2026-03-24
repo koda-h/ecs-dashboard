@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import { ServiceRow } from "@/components/ServiceRow";
 import { Input } from "@/components/ui/input";
-import { getServiceStatus } from "@/components/StatusBadge";
+import { getServiceStatus } from "@/lib/services/status";
 import type { ServiceInfo } from "@/lib/ecs";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());

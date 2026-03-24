@@ -1,18 +1,10 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import type { ServiceInfo } from "@/lib/ecs";
+import { getServiceStatus } from "@/lib/services/status";
+import type { ServiceStatus } from "@/lib/services/status";
 
-type ServiceStatus = "running" | "starting" | "stopping" | "stopped";
-
-export function getServiceStatus(service: ServiceInfo): ServiceStatus {
-  const { desiredCount, runningCount } = service;
-
-  if (desiredCount === 0 && runningCount === 0) return "stopped";
-  if (desiredCount === 0 && runningCount > 0) return "stopping";
-  if (desiredCount > 0 && runningCount < desiredCount) return "starting";
-  return "running";
-}
+export { getServiceStatus };
 
 const statusConfig: Record<
   ServiceStatus,
