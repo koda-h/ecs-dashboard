@@ -160,10 +160,10 @@ export function ServiceTable() {
               key={value}
               type="button"
               onClick={() => setStatusFilter(value)}
-              className={`px-3 py-1 text-sm rounded transition-colors ${
+              className={`px-3 py-1 text-sm rounded transition-colors cursor-pointer ${
                 statusFilter === value
                   ? "bg-blue-600 text-white"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-black hover:bg-gray-100"
               }`}
             >
               {label}

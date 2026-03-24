@@ -82,7 +82,7 @@ export function ServiceRow({ service, onUpdated }: Props) {
               />
               <Button
                 size="sm"
-                variant="default"
+                className="bg-green-100 text-green-800 hover:bg-green-200 cursor-pointer disabled:opacity-50"
                 onClick={() => updateService(desiredCount)}
                 disabled={updating}
               >
@@ -111,7 +111,7 @@ export function ServiceRow({ service, onUpdated }: Props) {
               </Button>
               <Button
                 size="sm"
-                variant="destructive"
+                className="bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer disabled:opacity-50"
                 onClick={() => updateService(0)}
                 disabled={updating}
               >
