@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { getServiceStatus } from "@/lib/services/status";
 import type { ServiceStatus } from "@/lib/services/status";
+import type { ServiceInfo } from "@/lib/ecs";
 
 export { getServiceStatus };
 

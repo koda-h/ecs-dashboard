@@ -5,6 +5,8 @@ import useSWR from "swr";
 import { ServiceRow } from "@/components/ServiceRow";
 import { Input } from "@/components/ui/input";
 import { getServiceStatus } from "@/lib/services/status";
+import { filterServicesByStatus } from "@/lib/services/filter";
+import type { StatusFilter } from "@/lib/services/filter";
 import type { ServiceInfo } from "@/lib/ecs";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -19,6 +21,7 @@ const ALL_CLUSTERS = { arn: "all", name: "すべてのクラスター" };
 export function ServiceTable() {
   const [selectedCluster, setSelectedCluster] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [clusterInput, setClusterInput] = useState(ALL_CLUSTERS.name);
   const [clusterSearch, setClusterSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -78,14 +81,17 @@ export function ServiceTable() {
   const services = serviceData?.services ?? [];
   const clusters = clusterData?.clusters ?? [];
 
-  const filtered = services.filter((s) => {
-    const matchesCluster =
-      selectedCluster === "all" || s.clusterArn === selectedCluster;
-    const matchesSearch = s.serviceName
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    return matchesCluster && matchesSearch;
-  });
+  const filtered = filterServicesByStatus(
+    services.filter((s) => {
+      const matchesCluster =
+        selectedCluster === "all" || s.clusterArn === selectedCluster;
+      const matchesSearch = s.serviceName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      return matchesCluster && matchesSearch;
+    }),
+    statusFilter
+  );
 
   const filteredClusters = [ALL_CLUSTERS, ...clusters].filter((c) =>
     c.name.toLowerCase().includes(clusterSearch.toLowerCase())
@@ -140,6 +146,30 @@ export function ServiceTable() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-64"
         />
+
+        {/* 起動ステータスフィルター */}
+        <div className="flex items-center gap-1 rounded-md border border-input bg-background p-1">
+          {(
+            [
+              { value: "all", label: "すべて" },
+              { value: "running", label: "起動中" },
+              { value: "stopped", label: "停止中" },
+            ] as const
+          ).map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatusFilter(value)}
+              className={`px-3 py-1 text-sm rounded transition-colors ${
+                statusFilter === value
+                  ? "bg-blue-600 text-white"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* テーブル */}
