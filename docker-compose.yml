@@ -3,6 +3,9 @@ services:
     build: .
     ports:
       - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       - AWS_REGION=${AWS_REGION:-ap-northeast-1}
       # ローカル開発時の SSO 認証情報を引き継ぐ
@@ -10,6 +13,37 @@ services:
       - AWS_SECRET_ACCESS_KEY
       - AWS_SESSION_TOKEN
       - AWS_PROFILE=${AWS_PROFILE:-devmpfront}
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/ecsdashboard
+      - JWT_SECRET=${JWT_SECRET}
+      - SMTP_HOST=mailcatcher
+      - SMTP_PORT=1025
+      - MAIL_FROM=noreply@ecs-dashboard.local
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
     volumes:
       # ローカルの AWS 設定・認証情報をマウント（SSO ログイン用）
       - ${HOME}/.aws:/home/nextjs/.aws:ro
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ecsdashboard
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailcatcher:
+    image: sj26/mailcatcher:latest
+    ports:
+      - "1025:1025"  # SMTP
+      - "1080:1080"  # Web UI (http://localhost:1080 でメール確認)
+
+volumes:
+  postgres_data:

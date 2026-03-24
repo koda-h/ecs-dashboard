@@ -1,5 +1,4 @@
 import { SignJWT, jwtVerify } from "jose";
-import { randomUUID } from "crypto";
 
 const EXPIRATION = "24h";
 const EXPIRATION_SECONDS = 24 * 60 * 60;
@@ -13,7 +12,7 @@ export interface SessionPayload {
 
 function getSecret(): Uint8Array {
   const secret =
-    process.env.JWT_SECRET ?? "dev-secret-key-at-least-32-chars!!";
+    process.env.JWT_SECRET || "dev-secret-key-at-least-32-chars!!";
   return new TextEncoder().encode(secret);
 }
 
@@ -22,13 +21,13 @@ export async function createSessionToken(userId: string): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(EXPIRATION)
-    .setJti(randomUUID())
+    .setJti(crypto.randomUUID())
     .sign(getSecret());
 }
 
 export async function verifySessionToken(token: string): Promise<SessionPayload> {
   const { payload } = await jwtVerify(token, getSecret());
-  return payload as SessionPayload;
+  return payload as unknown as SessionPayload;
 }
 
 /** 有効なトークンを受け取り、有効期限を現時刻から24時間後に更新した新しいトークンを返す */

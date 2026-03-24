@@ -200,12 +200,12 @@ describe("セッショントークンのペイロード", () => {
   it("トークンのペイロードにメールアドレスが含まれないこと(機密情報の漏洩防止)", async () => {
     const payload = await verifySessionToken(token);
 
-    expect((payload as Record<string, unknown>).email).toBeUndefined();
+    expect((payload as unknown as Record<string, unknown>).email).toBeUndefined();
   });
 
   it("トークンのペイロードにパスワードが含まれないこと", async () => {
     const payload = await verifySessionToken(token);
 
-    expect((payload as Record<string, unknown>).password).toBeUndefined();
+    expect((payload as unknown as Record<string, unknown>).password).toBeUndefined();
   });
 });

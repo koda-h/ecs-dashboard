@@ -1,0 +1,44 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  userId    String   @unique // ユーザが設定した半角英数字ID
+  email     String   @unique
+  password  String   // bcrypt ハッシュ済み
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accountLock         AccountLock?
+  passwordResetTokens PasswordResetToken[]
+}
+
+// ログイン失敗によるアカウントロック状態
+model AccountLock {
+  id           String    @id @default(cuid())
+  userId       String    @unique // User.id (内部ID)
+  failureCount Int       @default(0)
+  lockedAt     DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// パスワードリセット用トークン（有効期限1時間）
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique // SHA-256 ハッシュ済みトークン
+  userId    String    // User.id (内部ID)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
