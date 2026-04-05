@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { UserDetail } from "@/lib/users/queries";
@@ -10,6 +10,13 @@ interface Props {
   user: UserDetail;
   isSelf: boolean;
 }
+
+interface Cluster {
+  arn: string;
+  name: string;
+}
+
+const ALL_CLUSTERS: Cluster = { arn: "", name: "すべてのクラスター" };
 
 const ROLES: UserRole[] = ["Admin", "Editor", "Viewer"];
 
@@ -21,11 +28,18 @@ export function UserDetailClient({ user, isSelf }: Props) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // permission add state
-  const [clusterFilter, setClusterFilter] = useState("");
+  // cluster combobox state
+  const [clusters, setClusters] = useState<Cluster[]>([]);
+  const [selectedClusterArn, setSelectedClusterArn] = useState("");
+  const [clusterInput, setClusterInput] = useState(ALL_CLUSTERS.name);
+  const [clusterSearch, setClusterSearch] = useState("");
+  const [clusterDropdownOpen, setClusterDropdownOpen] = useState(false);
+  const clusterComboboxRef = useRef<HTMLDivElement>(null);
+
+  // service name filter
   const [serviceFilter, setServiceFilter] = useState("");
-  const [addError, setAddError] = useState<string | null>(null);
-  const [addLoading, setAddLoading] = useState(false);
+
+  // permission list state
   const [services, setServices] = useState<UserDetail["servicePermissions"]>(
     user.servicePermissions
   );
@@ -52,7 +66,45 @@ export function UserDetailClient({ user, isSelf }: Props) {
   >([]);
   const [fetchingServices, setFetchingServices] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addLoading, setAddLoading] = useState(false);
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
+
+  // クラスター一覧を取得（Editor セクション表示時）
+  useEffect(() => {
+    if (role !== "Editor") return;
+    fetch("/api/clusters")
+      .then((r) => r.json())
+      .then((data) => setClusters(data.clusters ?? []))
+      .catch(() => {});
+  }, [role]);
+
+  // クラスターコンボボックス: 外側クリックで閉じる
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        clusterComboboxRef.current &&
+        !clusterComboboxRef.current.contains(e.target as Node)
+      ) {
+        setClusterDropdownOpen(false);
+        setClusterSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function selectCluster(cluster: Cluster) {
+    setSelectedClusterArn(cluster.arn);
+    setClusterInput(cluster.name);
+    setClusterSearch("");
+    setClusterDropdownOpen(false);
+  }
+
+  const allClusterOptions = [ALL_CLUSTERS, ...clusters];
+  const filteredClusterOptions = allClusterOptions.filter((c) =>
+    c.name.toLowerCase().includes(clusterSearch.toLowerCase())
+  );
 
   async function handleSave() {
     setSaving(true);
@@ -99,10 +151,31 @@ export function UserDetailClient({ user, isSelf }: Props) {
     setSelectedToAdd(new Set());
     setFetchError(null);
     setFetchingServices(true);
+    setServiceFilter("");
+    setSelectedClusterArn("");
+    setClusterInput(ALL_CLUSTERS.name);
+    setClusterSearch("");
+    setClusterDropdownOpen(false);
+    try {
+      const res = await fetch("/api/services");
+      if (!res.ok) throw new Error("取得失敗");
+      const data = await res.json();
+      setAvailableServices(data.services ?? []);
+    } catch {
+      setFetchError("サービス一覧の取得に失敗しました");
+    } finally {
+      setFetchingServices(false);
+    }
+  }
+
+  async function handleDialogClusterSelect(cluster: Cluster) {
+    selectCluster(cluster);
+    setSelectedToAdd(new Set());
+    setFetchingServices(true);
+    setFetchError(null);
     try {
       const params = new URLSearchParams();
-      if (clusterFilter) params.set("cluster", clusterFilter);
-      if (serviceFilter) params.set("service", serviceFilter);
+      if (cluster.arn) params.set("cluster", cluster.arn);
       const res = await fetch(`/api/services?${params.toString()}`);
       if (!res.ok) throw new Error("取得失敗");
       const data = await res.json();
@@ -119,9 +192,14 @@ export function UserDetailClient({ user, isSelf }: Props) {
     setAddLoading(true);
     setAddError(null);
     try {
-      const permissions = availableServices.filter((s) =>
-        selectedToAdd.has(s.serviceArn)
-      );
+      const permissions = availableServices
+        .filter((s) => selectedToAdd.has(s.serviceArn))
+        .map(({ clusterArn, clusterName, serviceArn, serviceName }) => ({
+          clusterArn,
+          clusterName,
+          serviceArn,
+          serviceName,
+        }));
       const res = await fetch(`/api/users/${user.id}/permissions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -132,7 +210,6 @@ export function UserDetailClient({ user, isSelf }: Props) {
         setAddError(data.error ?? "追加に失敗しました");
         return;
       }
-      // merge locally
       const added = permissions.filter(
         (p) => !services.some((s) => s.serviceArn === p.serviceArn)
       );
@@ -192,15 +269,13 @@ export function UserDetailClient({ user, isSelf }: Props) {
     });
   }
 
+  // ダイアログ内サービスフィルタ（サービス名・付与済み除外）
   const filteredAvailable = availableServices.filter((s) => {
     const alreadyGranted = services.some((p) => p.serviceArn === s.serviceArn);
-    const matchCluster = clusterFilter
-      ? s.clusterName.includes(clusterFilter)
-      : true;
     const matchService = serviceFilter
-      ? s.serviceName.includes(serviceFilter)
+      ? s.serviceName.toLowerCase().includes(serviceFilter.toLowerCase())
       : true;
-    return !alreadyGranted && matchCluster && matchService;
+    return !alreadyGranted && matchService;
   });
 
   return (
@@ -264,9 +339,7 @@ export function UserDetailClient({ user, isSelf }: Props) {
           </div>
         </div>
 
-        {saveError && (
-          <p className="text-sm text-red-600">{saveError}</p>
-        )}
+        {saveError && <p className="text-sm text-red-600">{saveError}</p>}
 
         {!isSelf && (
           <button
@@ -285,22 +358,7 @@ export function UserDetailClient({ user, isSelf }: Props) {
         <section className="border border-gray-200 rounded-md p-6 space-y-4">
           <h2 className="text-lg font-semibold text-gray-800">操作権限</h2>
 
-          {/* Filter inputs */}
-          <div className="flex gap-3">
-            <input
-              type="text"
-              placeholder="クラスタ名でフィルタ"
-              value={clusterFilter}
-              onChange={(e) => setClusterFilter(e.target.value)}
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-            <input
-              type="text"
-              placeholder="サービス名でフィルタ"
-              value={serviceFilter}
-              onChange={(e) => setServiceFilter(e.target.value)}
-              className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
+          <div>
             <button
               type="button"
               onClick={openAddDialog}
@@ -433,6 +491,56 @@ export function UserDetailClient({ user, isSelf }: Props) {
               操作権限を追加
             </h3>
 
+            {/* ダイアログ内フィルター */}
+            <div className="flex gap-2">
+              <div ref={clusterComboboxRef} className="relative flex-1">
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={clusterDropdownOpen ? clusterSearch : clusterInput}
+                  placeholder="クラスターを選択"
+                  onChange={(e) => {
+                    setClusterSearch(e.target.value);
+                    setClusterDropdownOpen(true);
+                  }}
+                  onFocus={() => {
+                    setClusterSearch("");
+                    setClusterDropdownOpen(true);
+                  }}
+                />
+                {clusterDropdownOpen && (
+                  <ul className="absolute z-50 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-md max-h-40 overflow-y-auto">
+                    {filteredClusterOptions.length === 0 ? (
+                      <li className="px-3 py-2 text-sm text-gray-400">
+                        見つかりません
+                      </li>
+                    ) : (
+                      filteredClusterOptions.map((c) => (
+                        <li
+                          key={c.arn}
+                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-500 hover:text-white ${
+                            selectedClusterArn === c.arn
+                              ? "font-semibold bg-blue-100 text-blue-800"
+                              : ""
+                          }`}
+                          onMouseDown={() => handleDialogClusterSelect(c)}
+                        >
+                          {c.name}
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                )}
+              </div>
+              <input
+                type="text"
+                placeholder="サービス名でフィルタ"
+                value={serviceFilter}
+                onChange={(e) => setServiceFilter(e.target.value)}
+                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+
             {fetchingServices ? (
               <p className="text-sm text-gray-500 py-4 text-center">
                 取得中…
@@ -497,9 +605,7 @@ export function UserDetailClient({ user, isSelf }: Props) {
                 disabled={addLoading || selectedToAdd.size === 0}
                 className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
-                {addLoading
-                  ? "追加中…"
-                  : `${selectedToAdd.size} 件を追加`}
+                {addLoading ? "追加中…" : `${selectedToAdd.size} 件を追加`}
               </button>
             </div>
           </div>
