@@ -1,10 +1,12 @@
 import { SignJWT, jwtVerify } from "jose";
+import type { UserRole } from "@/lib/users/role";
 
 const EXPIRATION = "24h";
 const EXPIRATION_SECONDS = 24 * 60 * 60;
 
 export interface SessionPayload {
   userId: string;
+  role?: UserRole;
   jti?: string;
   iat?: number;
   exp?: number;
@@ -16,8 +18,14 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSessionToken(userId: string): Promise<string> {
-  return new SignJWT({ userId })
+export async function createSessionToken(
+  userId: string,
+  role?: UserRole
+): Promise<string> {
+  const payload: Record<string, unknown> = { userId };
+  if (role !== undefined) payload.role = role;
+
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(EXPIRATION)

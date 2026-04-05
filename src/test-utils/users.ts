@@ -1,4 +1,5 @@
 import type { ServicePermission } from "@/lib/users/permission";
+export type { ServicePermission };
 
 const REGION = "ap-northeast-1";
 const ACCOUNT_ID = "123456789012";

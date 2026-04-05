@@ -1,13 +1,14 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { createSessionToken, verifySessionToken, SessionPayload } from "./session";
+import type { UserRole } from "@/lib/users/role";
 
 export const SESSION_COOKIE_NAME = "session";
 const SESSION_MAX_AGE = 24 * 60 * 60; // 24時間（秒）
 
-/** ユーザIDからセッションCookieを生成してセットする */
-export async function setSessionCookie(userId: string): Promise<void> {
-  const token = await createSessionToken(userId);
+/** ユーザIDとロールからセッションCookieを生成してセットする */
+export async function setSessionCookie(userId: string, role: UserRole): Promise<void> {
+  const token = await createSessionToken(userId, role);
   const cookieStore = await cookies();
 
   cookieStore.set(SESSION_COOKIE_NAME, token, {

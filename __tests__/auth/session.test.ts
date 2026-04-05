@@ -183,6 +183,55 @@ describe("セッション有効期限の更新(スライディングセッショ
   });
 });
 
+// ──────────────────────────────────────────────────────────────────
+// ロール付きセッショントークン
+// ミドルウェアがロールを参照して Admin 専用ルートへのアクセスを制御するため、
+// セッショントークンには認証済みユーザのロールが含まれる。
+// ──────────────────────────────────────────────────────────────────
+
+describe("ロール付きセッショントークン", () => {
+  it("Admin ロールを指定してトークンを生成すると、検証時に Admin ロールが取得できること", async () => {
+    const token = await createSessionToken("user123", "Admin");
+
+    const payload = await verifySessionToken(token);
+
+    expect(payload.role).toBe("Admin");
+  });
+
+  it("Editor ロールを指定してトークンを生成すると、検証時に Editor ロールが取得できること", async () => {
+    const token = await createSessionToken("user123", "Editor");
+
+    const payload = await verifySessionToken(token);
+
+    expect(payload.role).toBe("Editor");
+  });
+
+  it("Viewer ロールを指定してトークンを生成すると、検証時に Viewer ロールが取得できること", async () => {
+    const token = await createSessionToken("user123", "Viewer");
+
+    const payload = await verifySessionToken(token);
+
+    expect(payload.role).toBe("Viewer");
+  });
+
+  it("ロール未指定でトークンを生成した場合、ペイロードにロールが含まれないこと", async () => {
+    // 後方互換性: 既存トークンはロールなしで発行されているため
+    const token = await createSessionToken("user123");
+
+    const payload = await verifySessionToken(token);
+
+    expect(payload.role).toBeUndefined();
+  });
+
+  it("ロール付きトークンにも userId が含まれること", async () => {
+    const token = await createSessionToken("user-abc", "Admin");
+
+    const payload = await verifySessionToken(token);
+
+    expect(payload.userId).toBe("user-abc");
+  });
+});
+
 describe("セッショントークンのペイロード", () => {
   let token: string;
 

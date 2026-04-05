@@ -99,9 +99,21 @@
 
 ---
 
+## UI実装ファイル（TDD完了分）
+
+| ファイル | 内容 |
+|---|---|
+| `components/UserMenu.tsx` | ドロップダウンメニュー（ユーザID表示、ユーザ一覧リンク(Admin only)、ログアウト） |
+| `app/page.tsx` | `LogoutButton` → `UserMenu` に差し替え |
+| `app/users/page.tsx` | ユーザ一覧画面（Server Component、テーブル表示） |
+| `app/users/[id]/page.tsx` | ユーザ詳細画面（Server Component ラッパー） |
+| `app/users/[id]/UserDetailClient.tsx` | ユーザ詳細クライアント（userId編集、ロール変更、権限追加/削除、削除確認ダイアログ） |
+
+---
+
 ## テスト結果
 
 ```
-Test Files  9 passed (9)
-     Tests  255 passed | 1 skipped (256)
+Test Files  11 passed (11)
+     Tests  290 passed | 1 skipped (291)
 ```

@@ -101,8 +101,8 @@ export async function loginAction(
     });
   }
 
-  // 6. セッションCookieをセット（ユーザの表示用IDを格納）
-  await setSessionCookie(user.userId);
+  // 6. セッションCookieをセット（ユーザの表示用IDとロールを格納）
+  await setSessionCookie(user.userId, user.role);
 
   // 7. サービス一覧へリダイレクト
   redirect("/");
