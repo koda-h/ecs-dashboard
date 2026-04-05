@@ -1,3 +1,5 @@
+import type { UserRole } from "@/lib/users/role";
+
 // 認証不要で誰でもアクセスできるルート
 const PUBLIC_ROUTES = ["/login", "/register", "/password-reset"];
 
@@ -29,6 +31,34 @@ export function getRedirectDecision(
     return { redirect: true, to: "/login" };
   }
   if (isPublicOnlyRoute(pathname) && isAuthenticated) {
+    return { redirect: true, to: "/" };
+  }
+  return { redirect: false };
+}
+
+/** Admin 専用ルート（/users, /users/[id]）かどうかを返す */
+export function isAdminRoute(pathname: string): boolean {
+  return pathname === "/users" || pathname.startsWith("/users/");
+}
+
+/**
+ * パス名・認証状態・ロールに基づいてリダイレクト判定を返す
+ * - 未認証で保護ルートへのアクセス → /login へリダイレクト
+ * - 認証済みで公開専用ルートへのアクセス → / へリダイレクト
+ * - Admin 以外が Admin 専用ルートへのアクセス → / へリダイレクト
+ */
+export function getRedirectDecisionWithRole(
+  pathname: string,
+  isAuthenticated: boolean,
+  role: UserRole | null
+): RedirectDecision {
+  if (isProtectedRoute(pathname) && !isAuthenticated) {
+    return { redirect: true, to: "/login" };
+  }
+  if (isPublicOnlyRoute(pathname) && isAuthenticated) {
+    return { redirect: true, to: "/" };
+  }
+  if (isAdminRoute(pathname) && isAuthenticated && role !== "Admin") {
     return { redirect: true, to: "/" };
   }
   return { redirect: false };
