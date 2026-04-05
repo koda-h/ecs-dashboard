@@ -8,6 +8,7 @@ import { getServiceStatus } from "@/lib/services/status";
 import { filterServicesByStatus } from "@/lib/services/filter";
 import type { StatusFilter } from "@/lib/services/filter";
 import type { ServiceInfo } from "@/lib/ecs";
+import type { UserRole } from "@/lib/users/role";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -18,7 +19,12 @@ interface Cluster {
 
 const ALL_CLUSTERS = { arn: "all", name: "すべてのクラスター" };
 
-export function ServiceTable() {
+interface Props {
+  role: UserRole | null;
+  servicePermissions: { serviceArn: string }[];
+}
+
+export function ServiceTable({ role, servicePermissions }: Props) {
   const [selectedCluster, setSelectedCluster] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -208,13 +214,22 @@ export function ServiceTable() {
                 </td>
               </tr>
             ) : (
-              filtered.map((service) => (
-                <ServiceRow
-                  key={service.serviceArn}
-                  service={service}
-                  onUpdated={() => mutate()}
-                />
-              ))
+              filtered.map((service) => {
+                const canOperate =
+                  role === "Admin" ||
+                  (role === "Editor" &&
+                    servicePermissions.some(
+                      (p) => p.serviceArn === service.serviceArn
+                    ));
+                return (
+                  <ServiceRow
+                    key={service.serviceArn}
+                    service={service}
+                    onUpdated={() => mutate()}
+                    canOperate={canOperate}
+                  />
+                );
+              })
             )}
           </tbody>
         </table>

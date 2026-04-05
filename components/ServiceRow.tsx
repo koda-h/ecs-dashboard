@@ -10,9 +10,10 @@ import { toast } from "sonner";
 interface Props {
   service: ServiceInfo;
   onUpdated: () => void;
+  canOperate: boolean;
 }
 
-export function ServiceRow({ service, onUpdated }: Props) {
+export function ServiceRow({ service, onUpdated, canOperate }: Props) {
   const [desiredCount, setDesiredCount] = useState(
     service.desiredCount > 0 ? service.desiredCount : 1
   );
@@ -68,7 +69,7 @@ export function ServiceRow({ service, onUpdated }: Props) {
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           {/* 起動・停止ボタン */}
-          {isStopped ? (
+          {!canOperate ? null : isStopped ? (
             <div className="flex items-center gap-2">
               <Input
                 type="number"
