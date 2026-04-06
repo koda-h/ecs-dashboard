@@ -33,7 +33,10 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
 
   // スライディングセッション: 認証済みリクエストのたびに有効期限を24時間後にリセット
-  if (isAuthenticated && userId && userRole) {
+  // Server Action リクエスト（Next-Action ヘッダーあり）はスキップ
+  // → ログアウト等のアクションによる Cookie 削除をミドルウェアが上書きしないようにする
+  const isServerAction = request.headers.has("next-action");
+  if (isAuthenticated && userId && userRole && !isServerAction) {
     const newToken = await createSessionToken(userId, userRole);
     response.cookies.set(SESSION_COOKIE_NAME, newToken, {
       httpOnly: true,

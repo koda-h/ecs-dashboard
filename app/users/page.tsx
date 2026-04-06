@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listUsers } from "@/lib/users/queries";
+import { ServicePermissionCell } from "./ServicePermissionCell";
 
 export const dynamic = "force-dynamic";
 
@@ -52,11 +53,13 @@ export default async function UsersPage() {
                 </td>
                 <td className="px-4 py-3 text-gray-700">{user.role}</td>
                 <td className="px-4 py-3 text-gray-500">
-                  {user.role === "Editor" && user.servicePermissions.length > 0
-                    ? user.servicePermissions
-                        .map((p) => p.serviceName)
-                        .join(", ")
-                    : "—"}
+                  {user.role === "Editor" ? (
+                    <ServicePermissionCell
+                      permissions={user.servicePermissions}
+                    />
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="px-4 py-3 text-gray-500">
                   {user.createdAt.toLocaleString("ja-JP")}
