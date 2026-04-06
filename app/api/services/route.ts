@@ -22,6 +22,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ services });
   } catch (err) {
     console.error("Failed to list services:", err);
+    if (
+      err instanceof Error &&
+      err.message.includes("SSO session associated with this profile is invalid")
+    ) {
+      return NextResponse.json(
+        { error: "SSO_SESSION_INVALID" },
+        { status: 401 }
+      );
+    }
     return NextResponse.json(
       { error: "サービス一覧の取得に失敗しました" },
       { status: 500 }
