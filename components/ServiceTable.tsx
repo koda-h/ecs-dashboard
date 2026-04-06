@@ -10,7 +10,12 @@ import type { StatusFilter } from "@/lib/services/filter";
 import type { ServiceInfo } from "@/lib/ecs";
 import type { UserRole } from "@/lib/users/role";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data;
+};
 
 interface Cluster {
   arn: string;
@@ -52,7 +57,7 @@ export function ServiceTable({ role, servicePermissions }: Props) {
   }
 
   // クラスター一覧
-  const { data: clusterData } = useSWR<{ clusters: Cluster[] }>(
+  const { data: clusterData, error: clusterError } = useSWR<{ clusters: Cluster[] }>(
     "/api/clusters",
     fetcher,
     { revalidateOnFocus: false }
@@ -73,7 +78,7 @@ export function ServiceTable({ role, servicePermissions }: Props) {
     []
   );
 
-  const { data: serviceData, mutate } = useSWR<{ services: ServiceInfo[] }>(
+  const { data: serviceData, error: serviceError, mutate } = useSWR<{ services: ServiceInfo[] }>(
     servicesUrl,
     fetcher,
     {
@@ -83,6 +88,10 @@ export function ServiceTable({ role, servicePermissions }: Props) {
       },
     }
   );
+
+  const isSsoError =
+    clusterError?.error === "SSO_SESSION_INVALID" ||
+    serviceError?.error === "SSO_SESSION_INVALID";
 
   const services = serviceData?.services ?? [];
   const clusters = clusterData?.clusters ?? [];
@@ -105,6 +114,15 @@ export function ServiceTable({ role, servicePermissions }: Props) {
 
   return (
     <div>
+      {isSsoError && (
+        <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          このプロファイルに関連付けられているSSOセッションは無効です。該当するプロファイルで{" "}
+          <code className="font-mono font-semibold">aws sso login</code>{" "}
+          を実行して、SSOセッションを更新してください。
+        </div>
+      )}
+      {!isSsoError && (
+      <>
       {/* フィルター */}
       <div className="flex gap-4 mb-4">
         {/* クラスター検索コンボボックス */}
@@ -238,6 +256,8 @@ export function ServiceTable({ role, servicePermissions }: Props) {
       <p className="mt-2 text-xs text-gray-400 text-right">
         30秒ごとに自動更新（処理中は10秒）
       </p>
+      </>
+      )}
     </div>
   );
 }
