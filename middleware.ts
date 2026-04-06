@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken, createSessionToken } from "@/lib/auth/session";
-import { getRedirectDecision } from "@/lib/auth/guard";
+import { getRedirectDecisionWithRole } from "@/lib/auth/guard";
+import type { UserRole } from "@/lib/users/role";
 
 const SESSION_COOKIE_NAME = "session";
 const SESSION_MAX_AGE = 24 * 60 * 60; // 24時間（秒）
@@ -11,17 +12,19 @@ export async function middleware(request: NextRequest) {
 
   // セッショントークンを検証する（Edge 互換の jose を使用）
   let userId: string | null = null;
+  let userRole: UserRole | null = null;
   if (token) {
     try {
       const payload = await verifySessionToken(token);
       userId = payload.userId;
+      userRole = payload.role ?? null;
     } catch {
       // 無効なトークン → 未認証として扱う
     }
   }
 
   const isAuthenticated = userId !== null;
-  const decision = getRedirectDecision(pathname, isAuthenticated);
+  const decision = getRedirectDecisionWithRole(pathname, isAuthenticated, userRole);
 
   if (decision.redirect) {
     return NextResponse.redirect(new URL(decision.to, request.url));
@@ -30,8 +33,8 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
 
   // スライディングセッション: 認証済みリクエストのたびに有効期限を24時間後にリセット
-  if (isAuthenticated && userId) {
-    const newToken = await createSessionToken(userId);
+  if (isAuthenticated && userId && userRole) {
+    const newToken = await createSessionToken(userId, userRole);
     response.cookies.set(SESSION_COOKIE_NAME, newToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

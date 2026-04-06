@@ -64,15 +64,15 @@ export async function registerAction(
     };
   }
 
-  // 3. パスワードハッシュ化 & ユーザ作成
+  // 3. パスワードハッシュ化 & ユーザ作成（登録時は Viewer ロール）
   const hashedPassword = await hashPassword(password);
   const user = await prisma.user.create({
-    data: { userId, email, password: hashedPassword },
-    select: { userId: true },
+    data: { userId, email, password: hashedPassword, role: "Viewer" },
+    select: { userId: true, role: true },
   });
 
-  // 4. セッションCookieをセット
-  await setSessionCookie(user.userId);
+  // 4. セッションCookieをセット（ロールを含める）
+  await setSessionCookie(user.userId, user.role);
 
   // 5. サービス一覧へリダイレクト
   redirect("/");

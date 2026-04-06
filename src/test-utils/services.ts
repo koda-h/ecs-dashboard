@@ -49,3 +49,21 @@ export function buildStoppingService(name = "stopping-service"): ServiceInfo {
 export function buildStoppedService(name = "stopped-service"): ServiceInfo {
   return buildServiceWithName(name, { desiredCount: 0, runningCount: 0 });
 }
+
+/**
+ * クラスター名とサービス名を指定してサービスを生成する。
+ * ARN もクラスター名・サービス名に合わせて生成される。
+ */
+export function buildServiceInCluster(
+  clusterName: string,
+  serviceName: string,
+  overrides: Partial<ServiceInfo> = {}
+): ServiceInfo {
+  return buildService({
+    clusterArn: `arn:aws:ecs:ap-northeast-1:123456789012:cluster/${clusterName}`,
+    clusterName,
+    serviceArn: `arn:aws:ecs:ap-northeast-1:123456789012:service/${clusterName}/${serviceName}`,
+    serviceName,
+    ...overrides,
+  });
+}

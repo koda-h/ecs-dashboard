@@ -8,16 +8,39 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  Admin
+  Editor
+  Viewer
+}
+
 model User {
   id        String   @id @default(cuid())
   userId    String   @unique // ユーザが設定した半角英数字ID
   email     String   @unique
   password  String   // bcrypt ハッシュ済み
+  role      UserRole @default(Viewer)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   accountLock         AccountLock?
   passwordResetTokens PasswordResetToken[]
+  servicePermissions  ServicePermission[]
+}
+
+// Editor ユーザに付与する ECS サービス操作権限
+model ServicePermission {
+  id          String   @id @default(cuid())
+  userId      String   // User.id (内部ID)
+  clusterArn  String
+  clusterName String
+  serviceArn  String
+  serviceName String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, serviceArn])
 }
 
 // ログイン失敗によるアカウントロック状態
