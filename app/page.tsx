@@ -2,17 +2,29 @@ import { ServiceTable } from "@/components/ServiceTable";
 import { UserMenu } from "@/components/UserMenu";
 import { getSessionFromCookie } from "@/lib/auth/cookies";
 import { prisma } from "@/lib/db";
+import type { ViewMode } from "@/lib/users/permission";
 
 export default async function Home() {
   const session = await getSessionFromCookie();
 
   let servicePermissions: { serviceArn: string }[] = [];
-  if (session?.role === "Editor" && session.userId) {
+  let viewMode: ViewMode = "ALL";
+  let viewPermissions: { serviceArn: string }[] = [];
+
+  if ((session?.role === "Editor" || session?.role === "Viewer") && session.userId) {
     const user = await prisma.user.findUnique({
       where: { userId: session.userId },
-      select: { servicePermissions: { select: { serviceArn: true } } },
+      select: {
+        viewMode: true,
+        servicePermissions: { select: { serviceArn: true } },
+        viewPermissions: { select: { serviceArn: true } },
+      },
     });
-    servicePermissions = user?.servicePermissions ?? [];
+    viewMode = (user?.viewMode as ViewMode) ?? "ALL";
+    viewPermissions = user?.viewPermissions ?? [];
+    if (session.role === "Editor") {
+      servicePermissions = user?.servicePermissions ?? [];
+    }
   }
 
   return (
@@ -26,6 +38,8 @@ export default async function Home() {
       <ServiceTable
         role={session?.role ?? null}
         servicePermissions={servicePermissions}
+        viewMode={viewMode}
+        viewPermissions={viewPermissions}
       />
     </main>
   );

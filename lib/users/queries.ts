@@ -1,11 +1,20 @@
 import { prisma } from "@/lib/db";
+import type { ViewMode } from "@/lib/users/permission";
 
 export type UserDetail = {
   id: string;
   userId: string;
   email: string;
   role: "Admin" | "Editor" | "Viewer";
+  viewMode: ViewMode;
   servicePermissions: Array<{
+    id: string;
+    clusterArn: string;
+    clusterName: string;
+    serviceArn: string;
+    serviceName: string;
+  }>;
+  viewPermissions: Array<{
     id: string;
     clusterArn: string;
     clusterName: string;
@@ -21,9 +30,19 @@ const userSelect = {
   userId: true,
   email: true,
   role: true,
+  viewMode: true,
   createdAt: true,
   updatedAt: true,
   servicePermissions: {
+    select: {
+      id: true,
+      clusterArn: true,
+      clusterName: true,
+      serviceArn: true,
+      serviceName: true,
+    },
+  },
+  viewPermissions: {
     select: {
       id: true,
       clusterArn: true,

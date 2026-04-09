@@ -1,7 +1,16 @@
 import type { ServiceInfo } from "@/lib/ecs";
 import type { UserRole } from "@/lib/users/role";
 
+export type ViewMode = "ALL" | "SYNC" | "CUSTOM";
+
 export interface ServicePermission {
+  clusterArn: string;
+  clusterName: string;
+  serviceArn: string;
+  serviceName: string;
+}
+
+export interface ViewPermission {
   clusterArn: string;
   clusterName: string;
   serviceArn: string;
@@ -81,4 +90,78 @@ export function canOperateService(
 /** 全ロールがサービスを閲覧できるため、常に true を返す */
 export function canViewServices(_userRole: UserRole): boolean {
   return true;
+}
+
+/**
+ * 指定サービスの閲覧が可能かを返す。
+ * - Admin    : 常に true
+ * - ALL      : 常に true
+ * - SYNC     : operationPermissions に含まれる場合のみ true
+ * - CUSTOM   : viewPermissions に含まれる場合のみ true
+ */
+export function canViewService(
+  userRole: UserRole,
+  viewMode: ViewMode,
+  viewPermissions: ViewPermission[],
+  operationPermissions: ServicePermission[],
+  serviceArn: string
+): boolean {
+  if (userRole === "Admin") return true;
+  if (viewMode === "ALL") return true;
+  if (viewMode === "SYNC") {
+    return operationPermissions.some((p) => p.serviceArn === serviceArn);
+  }
+  return viewPermissions.some((p) => p.serviceArn === serviceArn);
+}
+
+/**
+ * 閲覧権限に基づいてサービスリストをフィルタリングする。
+ * - Admin / ALL : そのまま返す
+ * - SYNC        : operationPermissions に含まれるサービスのみ
+ * - CUSTOM      : viewPermissions に含まれるサービスのみ
+ */
+export function filterServicesByView(
+  services: ServiceInfo[],
+  userRole: UserRole,
+  viewMode: ViewMode,
+  viewPermissions: ViewPermission[],
+  operationPermissions: ServicePermission[]
+): ServiceInfo[] {
+  if (userRole === "Admin" || viewMode === "ALL") return services;
+  return services.filter((s) =>
+    canViewService(userRole, viewMode, viewPermissions, operationPermissions, s.serviceArn)
+  );
+}
+
+/**
+ * 閲覧権限リストにサービスを追加する。
+ * serviceArn を重複排除キーとして使用する。
+ */
+export function addViewPermissions(
+  current: ViewPermission[],
+  toAdd: ViewPermission[]
+): ViewPermission[] {
+  const seen = new Set(current.map((p) => p.serviceArn));
+  const result = [...current];
+
+  for (const p of toAdd) {
+    if (!seen.has(p.serviceArn)) {
+      seen.add(p.serviceArn);
+      result.push(p);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 閲覧権限リストからサービスを削除する。
+ * serviceArn で一致したサービスを一覧から除外する。
+ */
+export function removeViewPermissions(
+  current: ViewPermission[],
+  toRemove: ViewPermission[]
+): ViewPermission[] {
+  const removeArns = new Set(toRemove.map((p) => p.serviceArn));
+  return current.filter((p) => !removeArns.has(p.serviceArn));
 }
