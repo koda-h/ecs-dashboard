@@ -30,10 +30,15 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const { id } = await params;
 
   const body = await req.json();
-  const { userId, role } = body as { userId?: string; role?: string };
+  const { userId, role, viewMode } = body as { userId?: string; role?: string; viewMode?: string };
 
   if (role !== undefined && !isValidRole(role)) {
     return NextResponse.json({ error: "無効なロールです" }, { status: 400 });
+  }
+
+  const VALID_VIEW_MODES = ["ALL", "SYNC", "CUSTOM"] as const;
+  if (viewMode !== undefined && !VALID_VIEW_MODES.includes(viewMode as typeof VALID_VIEW_MODES[number])) {
+    return NextResponse.json({ error: "無効な viewMode です" }, { status: 400 });
   }
 
   // 自分自身のロール変更を禁止（currentUserId は session の内部IDではなく userId なので別途取得が必要）
@@ -58,6 +63,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const updated = await updateUser(id, {
       ...(userId !== undefined ? { userId } : {}),
       ...(isValidRole(role) ? { role } : {}),
+      ...(viewMode !== undefined ? { viewMode: viewMode as "ALL" | "SYNC" | "CUSTOM" } : {}),
     });
     return NextResponse.json({ user: updated });
   } catch {

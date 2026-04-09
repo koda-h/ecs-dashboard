@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { UserDetail } from "@/lib/users/queries";
+import type { ViewMode } from "@/lib/users/permission";
 
 type ServicePermissionInput = {
   clusterArn: string;
@@ -8,10 +9,17 @@ type ServicePermissionInput = {
   serviceName: string;
 };
 
-/** ユーザの userId または role を更新して更新後のユーザを返す */
+type ViewPermissionInput = {
+  clusterArn: string;
+  clusterName: string;
+  serviceArn: string;
+  serviceName: string;
+};
+
+/** ユーザの userId・role・viewMode を更新して更新後のユーザを返す */
 export async function updateUser(
   id: string,
-  data: { userId?: string; role?: "Admin" | "Editor" | "Viewer" }
+  data: { userId?: string; role?: "Admin" | "Editor" | "Viewer"; viewMode?: ViewMode }
 ): Promise<UserDetail> {
   const updated = await prisma.user.update({
     where: { id },
@@ -23,7 +31,17 @@ export async function updateUser(
       role: true,
       createdAt: true,
       updatedAt: true,
+      viewMode: true,
       servicePermissions: {
+        select: {
+          id: true,
+          clusterArn: true,
+          clusterName: true,
+          serviceArn: true,
+          serviceName: true,
+        },
+      },
+      viewPermissions: {
         select: {
           id: true,
           clusterArn: true,
@@ -62,6 +80,33 @@ export async function removeUserServicePermissions(
   serviceArns: string[]
 ): Promise<void> {
   await prisma.servicePermission.deleteMany({
+    where: {
+      userId,
+      serviceArn: { in: serviceArns },
+    },
+  });
+}
+
+/**
+ * ユーザへサービス閲覧権限を追加する。
+ * 同一 serviceArn が既に存在する場合はスキップする（重複なし）。
+ */
+export async function addUserViewPermissions(
+  userId: string,
+  permissions: ViewPermissionInput[]
+): Promise<void> {
+  await prisma.viewPermission.createMany({
+    data: permissions.map((p) => ({ userId, ...p })),
+    skipDuplicates: true,
+  });
+}
+
+/** 指定した serviceArn の閲覧権限を削除する */
+export async function removeUserViewPermissions(
+  userId: string,
+  serviceArns: string[]
+): Promise<void> {
+  await prisma.viewPermission.deleteMany({
     where: {
       userId,
       serviceArn: { in: serviceArns },

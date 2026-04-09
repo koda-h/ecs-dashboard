@@ -5,11 +5,19 @@ import {
   removeServicePermissions,
   canOperateService,
   canViewServices,
+  canViewService,
+  filterServicesByView,
+  addViewPermissions,
+  removeViewPermissions,
   type ServicePermission,
+  type ViewPermission,
 } from "@/lib/users/permission";
 import type { ServiceInfo } from "@/lib/ecs";
 import { buildServiceInCluster } from "@/src/test-utils/services";
-import { buildServicePermissionInCluster } from "@/src/test-utils/users";
+import {
+  buildServicePermissionInCluster,
+  buildViewPermissionInCluster,
+} from "@/src/test-utils/users";
 
 // ──────────────────────────────────────────────────────────────────
 // サービス操作権限仕様
@@ -511,5 +519,547 @@ describe("canViewServices — 閲覧権限", () => {
 
   it("Viewer ロールのユーザはサービスを閲覧できること", () => {
     expect(canViewServices("Viewer")).toBe(true);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// canViewService
+// ロール・viewMode・閲覧権限・操作権限に基づいて、
+// 特定の ECS サービスの閲覧が可能かどうかを判定する。
+//
+// viewMode の仕様:
+//   ALL    : 全サービスを表示（デフォルト）
+//   SYNC   : 操作権限リストのサービスと連動（Editor 専用）
+//   CUSTOM : viewPermissions に登録されたサービスのみ表示
+// ──────────────────────────────────────────────────────────────────
+
+describe("canViewService — Admin ロール", () => {
+  let perm: ServicePermission;
+  let viewPerm: ViewPermission;
+
+  beforeEach(() => {
+    perm = buildServicePermissionInCluster("prod-cluster", "api-service");
+    viewPerm = buildViewPermissionInCluster("prod-cluster", "api-service");
+  });
+
+  it("Admin は viewMode が ALL のとき任意のサービスを閲覧できること", () => {
+    expect(canViewService("Admin", "ALL", [], [], perm.serviceArn)).toBe(true);
+  });
+
+  it("Admin は viewMode が SYNC のとき任意のサービスを閲覧できること", () => {
+    expect(canViewService("Admin", "SYNC", [], [], perm.serviceArn)).toBe(true);
+  });
+
+  it("Admin は viewMode が CUSTOM のとき任意のサービスを閲覧できること", () => {
+    expect(canViewService("Admin", "CUSTOM", [], [], perm.serviceArn)).toBe(true);
+  });
+
+  it("Admin は viewPermissions が空でも任意のサービスを閲覧できること", () => {
+    expect(canViewService("Admin", "CUSTOM", [], [], perm.serviceArn)).toBe(true);
+  });
+
+  it("Admin は operationPermissions が空でも任意のサービスを閲覧できること", () => {
+    expect(canViewService("Admin", "SYNC", [viewPerm], [], perm.serviceArn)).toBe(true);
+  });
+});
+
+describe("canViewService — Editor / viewMode: ALL", () => {
+  let perm: ServicePermission;
+
+  beforeEach(() => {
+    perm = buildServicePermissionInCluster("prod-cluster", "api-service");
+  });
+
+  it("Editor で viewMode が ALL のとき、任意のサービスを閲覧できること", () => {
+    expect(canViewService("Editor", "ALL", [], [], perm.serviceArn)).toBe(true);
+  });
+
+  it("Editor で viewMode が ALL のとき、viewPermissions が空でも閲覧できること", () => {
+    expect(canViewService("Editor", "ALL", [], [perm], perm.serviceArn)).toBe(true);
+  });
+
+  it("Editor で viewMode が ALL のとき、operationPermissions が空でも閲覧できること", () => {
+    expect(canViewService("Editor", "ALL", [], [], perm.serviceArn)).toBe(true);
+  });
+});
+
+describe("canViewService — Editor / viewMode: SYNC", () => {
+  let opPerm: ServicePermission;
+  let otherArn: string;
+
+  beforeEach(() => {
+    opPerm = buildServicePermissionInCluster("prod-cluster", "api-service");
+    otherArn = buildServicePermissionInCluster("staging-cluster", "batch-service").serviceArn;
+  });
+
+  it("Editor で viewMode が SYNC のとき、operationPermissions に含まれるサービスを閲覧できること", () => {
+    expect(canViewService("Editor", "SYNC", [], [opPerm], opPerm.serviceArn)).toBe(true);
+  });
+
+  it("Editor で viewMode が SYNC のとき、operationPermissions に含まれないサービスは閲覧できないこと", () => {
+    expect(canViewService("Editor", "SYNC", [], [opPerm], otherArn)).toBe(false);
+  });
+
+  it("Editor で viewMode が SYNC のとき、operationPermissions が空の場合どのサービスも閲覧できないこと", () => {
+    expect(canViewService("Editor", "SYNC", [], [], opPerm.serviceArn)).toBe(false);
+  });
+
+  it("Editor で viewMode が SYNC のとき、viewPermissions の内容は無視されること", () => {
+    // viewPermissions に otherArn が含まれていても SYNC は operationPermissions を参照する
+    const viewPerm = buildViewPermissionInCluster("staging-cluster", "batch-service");
+    expect(canViewService("Editor", "SYNC", [viewPerm], [opPerm], otherArn)).toBe(false);
+  });
+});
+
+describe("canViewService — Editor / viewMode: CUSTOM", () => {
+  let viewPerm: ViewPermission;
+  let otherArn: string;
+
+  beforeEach(() => {
+    viewPerm = buildViewPermissionInCluster("prod-cluster", "api-service");
+    otherArn = buildServicePermissionInCluster("staging-cluster", "batch-service").serviceArn;
+  });
+
+  it("Editor で viewMode が CUSTOM のとき、viewPermissions に含まれるサービスを閲覧できること", () => {
+    expect(canViewService("Editor", "CUSTOM", [viewPerm], [], viewPerm.serviceArn)).toBe(true);
+  });
+
+  it("Editor で viewMode が CUSTOM のとき、viewPermissions に含まれないサービスは閲覧できないこと", () => {
+    expect(canViewService("Editor", "CUSTOM", [viewPerm], [], otherArn)).toBe(false);
+  });
+
+  it("Editor で viewMode が CUSTOM のとき、viewPermissions が空の場合どのサービスも閲覧できないこと", () => {
+    expect(canViewService("Editor", "CUSTOM", [], [], viewPerm.serviceArn)).toBe(false);
+  });
+
+  it("Editor で viewMode が CUSTOM のとき、operationPermissions の内容は無視されること", () => {
+    // operationPermissions に otherArn が含まれていても CUSTOM は viewPermissions を参照する
+    const opPerm = buildServicePermissionInCluster("staging-cluster", "batch-service");
+    expect(canViewService("Editor", "CUSTOM", [viewPerm], [opPerm], otherArn)).toBe(false);
+  });
+});
+
+describe("canViewService — Viewer / viewMode: ALL", () => {
+  let viewPerm: ViewPermission;
+
+  beforeEach(() => {
+    viewPerm = buildViewPermissionInCluster("prod-cluster", "api-service");
+  });
+
+  it("Viewer で viewMode が ALL のとき、任意のサービスを閲覧できること", () => {
+    expect(canViewService("Viewer", "ALL", [], [], viewPerm.serviceArn)).toBe(true);
+  });
+
+  it("Viewer で viewMode が ALL のとき、viewPermissions が空でも閲覧できること", () => {
+    expect(canViewService("Viewer", "ALL", [], [], viewPerm.serviceArn)).toBe(true);
+  });
+});
+
+describe("canViewService — Viewer / viewMode: CUSTOM", () => {
+  let viewPerm: ViewPermission;
+  let otherArn: string;
+
+  beforeEach(() => {
+    viewPerm = buildViewPermissionInCluster("prod-cluster", "api-service");
+    otherArn = buildServicePermissionInCluster("staging-cluster", "batch-service").serviceArn;
+  });
+
+  it("Viewer で viewMode が CUSTOM のとき、viewPermissions に含まれるサービスを閲覧できること", () => {
+    expect(canViewService("Viewer", "CUSTOM", [viewPerm], [], viewPerm.serviceArn)).toBe(true);
+  });
+
+  it("Viewer で viewMode が CUSTOM のとき、viewPermissions に含まれないサービスは閲覧できないこと", () => {
+    expect(canViewService("Viewer", "CUSTOM", [viewPerm], [], otherArn)).toBe(false);
+  });
+
+  it("Viewer で viewMode が CUSTOM のとき、viewPermissions が空の場合どのサービスも閲覧できないこと", () => {
+    expect(canViewService("Viewer", "CUSTOM", [], [], viewPerm.serviceArn)).toBe(false);
+  });
+});
+
+describe("canViewService — Viewer / viewMode: SYNC（エッジケース）", () => {
+  it("Viewer で viewMode が SYNC のとき、operationPermissions は常に空のためどのサービスも閲覧できないこと", () => {
+    // Viewer に操作権限は付与されないため operationPermissions は空。
+    // SYNC は operationPermissions を参照するので全サービス閲覧不可。
+    const serviceArn = buildServicePermissionInCluster("prod-cluster", "api-service").serviceArn;
+    expect(canViewService("Viewer", "SYNC", [], [], serviceArn)).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// filterServicesByView
+// viewMode・閲覧権限・操作権限に基づいてサービスリストをフィルタリングする。
+// ──────────────────────────────────────────────────────────────────
+
+describe("filterServicesByView — Admin ロール", () => {
+  let services: ServiceInfo[];
+
+  beforeEach(() => {
+    services = [
+      buildServiceInCluster("prod-cluster", "api-service"),
+      buildServiceInCluster("prod-cluster", "web-service"),
+      buildServiceInCluster("staging-cluster", "batch-service"),
+    ];
+  });
+
+  it("Admin のとき、サービスリストがそのまま返ること", () => {
+    const result = filterServicesByView(services, "Admin", "CUSTOM", [], []);
+
+    expect(result).toEqual(services);
+  });
+
+  it("Admin のとき、viewMode・viewPermissions・operationPermissions の内容に関わらず全サービスが返ること", () => {
+    const result = filterServicesByView(services, "Admin", "CUSTOM", [], []);
+
+    expect(result).toHaveLength(3);
+  });
+});
+
+describe("filterServicesByView — Editor / viewMode: ALL", () => {
+  let services: ServiceInfo[];
+
+  beforeEach(() => {
+    services = [
+      buildServiceInCluster("prod-cluster", "api-service"),
+      buildServiceInCluster("prod-cluster", "web-service"),
+    ];
+  });
+
+  it("viewMode が ALL のとき、サービスリストがそのまま返ること", () => {
+    const result = filterServicesByView(services, "Editor", "ALL", [], []);
+
+    expect(result).toEqual(services);
+  });
+
+  it("viewMode が ALL のとき、サービスリストが空の場合空配列を返すこと", () => {
+    const result = filterServicesByView([], "Editor", "ALL", [], []);
+
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("filterServicesByView — Editor / viewMode: SYNC", () => {
+  let services: ServiceInfo[];
+  let opPermApi: ServicePermission;
+  let opPermWeb: ServicePermission;
+
+  beforeEach(() => {
+    services = [
+      buildServiceInCluster("prod-cluster", "api-service"),
+      buildServiceInCluster("prod-cluster", "web-service"),
+      buildServiceInCluster("staging-cluster", "batch-service"),
+    ];
+    opPermApi = buildServicePermissionInCluster("prod-cluster", "api-service");
+    opPermWeb = buildServicePermissionInCluster("prod-cluster", "web-service");
+  });
+
+  it("viewMode が SYNC のとき、operationPermissions に含まれるサービスのみが返ること", () => {
+    const result = filterServicesByView(services, "Editor", "SYNC", [], [opPermApi]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].serviceName).toBe("api-service");
+  });
+
+  it("viewMode が SYNC のとき、operationPermissions に含まれないサービスが除外されること", () => {
+    const result = filterServicesByView(services, "Editor", "SYNC", [], [opPermApi]);
+
+    expect(result.map((s) => s.serviceName)).not.toContain("batch-service");
+  });
+
+  it("viewMode が SYNC のとき、operationPermissions が空の場合空配列を返すこと", () => {
+    const result = filterServicesByView(services, "Editor", "SYNC", [], []);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("viewMode が SYNC のとき、複数サービスのうち一部だけ権限がある場合、権限のあるものだけが返ること", () => {
+    const result = filterServicesByView(services, "Editor", "SYNC", [], [opPermApi, opPermWeb]);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((s) => s.serviceName)).toContain("api-service");
+    expect(result.map((s) => s.serviceName)).toContain("web-service");
+    expect(result.map((s) => s.serviceName)).not.toContain("batch-service");
+  });
+
+  it("viewMode が SYNC のとき、フィルタ後も元のサービスリストの順序が保持されること", () => {
+    const result = filterServicesByView(services, "Editor", "SYNC", [], [opPermApi, opPermWeb]);
+
+    expect(result[0].serviceName).toBe("api-service");
+    expect(result[1].serviceName).toBe("web-service");
+  });
+});
+
+describe("filterServicesByView — Editor / viewMode: CUSTOM", () => {
+  let services: ServiceInfo[];
+  let viewPermApi: ViewPermission;
+  let viewPermWeb: ViewPermission;
+
+  beforeEach(() => {
+    services = [
+      buildServiceInCluster("prod-cluster", "api-service"),
+      buildServiceInCluster("prod-cluster", "web-service"),
+      buildServiceInCluster("staging-cluster", "batch-service"),
+    ];
+    viewPermApi = buildViewPermissionInCluster("prod-cluster", "api-service");
+    viewPermWeb = buildViewPermissionInCluster("prod-cluster", "web-service");
+  });
+
+  it("viewMode が CUSTOM のとき、viewPermissions に含まれるサービスのみが返ること", () => {
+    const result = filterServicesByView(services, "Editor", "CUSTOM", [viewPermApi], []);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].serviceName).toBe("api-service");
+  });
+
+  it("viewMode が CUSTOM のとき、viewPermissions に含まれないサービスが除外されること", () => {
+    const result = filterServicesByView(services, "Editor", "CUSTOM", [viewPermApi], []);
+
+    expect(result.map((s) => s.serviceName)).not.toContain("batch-service");
+  });
+
+  it("viewMode が CUSTOM のとき、viewPermissions が空の場合空配列を返すこと", () => {
+    const result = filterServicesByView(services, "Editor", "CUSTOM", [], []);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("viewMode が CUSTOM のとき、複数サービスのうち一部だけ閲覧権限がある場合、閲覧権限のあるものだけが返ること", () => {
+    const result = filterServicesByView(services, "Editor", "CUSTOM", [viewPermApi, viewPermWeb], []);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((s) => s.serviceName)).toContain("api-service");
+    expect(result.map((s) => s.serviceName)).toContain("web-service");
+    expect(result.map((s) => s.serviceName)).not.toContain("batch-service");
+  });
+
+  it("viewMode が CUSTOM のとき、フィルタ後も元のサービスリストの順序が保持されること", () => {
+    const result = filterServicesByView(services, "Editor", "CUSTOM", [viewPermApi, viewPermWeb], []);
+
+    expect(result[0].serviceName).toBe("api-service");
+    expect(result[1].serviceName).toBe("web-service");
+  });
+});
+
+describe("filterServicesByView — Viewer / viewMode: ALL", () => {
+  let services: ServiceInfo[];
+
+  beforeEach(() => {
+    services = [
+      buildServiceInCluster("prod-cluster", "api-service"),
+      buildServiceInCluster("prod-cluster", "web-service"),
+    ];
+  });
+
+  it("Viewer で viewMode が ALL のとき、サービスリストがそのまま返ること", () => {
+    const result = filterServicesByView(services, "Viewer", "ALL", [], []);
+
+    expect(result).toEqual(services);
+  });
+});
+
+describe("filterServicesByView — Viewer / viewMode: CUSTOM", () => {
+  let services: ServiceInfo[];
+  let viewPermApi: ViewPermission;
+
+  beforeEach(() => {
+    services = [
+      buildServiceInCluster("prod-cluster", "api-service"),
+      buildServiceInCluster("prod-cluster", "web-service"),
+    ];
+    viewPermApi = buildViewPermissionInCluster("prod-cluster", "api-service");
+  });
+
+  it("Viewer で viewMode が CUSTOM のとき、viewPermissions に含まれるサービスのみが返ること", () => {
+    const result = filterServicesByView(services, "Viewer", "CUSTOM", [viewPermApi], []);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].serviceName).toBe("api-service");
+  });
+
+  it("Viewer で viewMode が CUSTOM のとき、viewPermissions が空の場合空配列を返すこと", () => {
+    const result = filterServicesByView(services, "Viewer", "CUSTOM", [], []);
+
+    expect(result).toHaveLength(0);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// addViewPermissions
+// チェックしたサービスを閲覧権限一覧に追加する。
+// serviceArn を重複排除のキーとして使用する。
+// ──────────────────────────────────────────────────────────────────
+
+describe("addViewPermissions — 基本追加", () => {
+  let viewA: ViewPermission;
+  let viewB: ViewPermission;
+  let viewC: ViewPermission;
+
+  beforeEach(() => {
+    viewA = buildViewPermissionInCluster("prod-cluster", "api-service");
+    viewB = buildViewPermissionInCluster("prod-cluster", "web-service");
+    viewC = buildViewPermissionInCluster("staging-cluster", "api-service");
+  });
+
+  it("閲覧権限一覧が空の場合、追加したサービスが一覧に含まれること", () => {
+    const result = addViewPermissions([], [viewA]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].serviceArn).toBe(viewA.serviceArn);
+  });
+
+  it("既存の一覧に新しいサービスを追加すると、そのサービスが一覧に追加されること", () => {
+    const result = addViewPermissions([viewA], [viewC]);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.serviceArn)).toContain(viewC.serviceArn);
+  });
+
+  it("複数のサービスを一度に追加できること", () => {
+    const result = addViewPermissions([viewA], [viewB, viewC]);
+
+    expect(result).toHaveLength(3);
+  });
+
+  it("追加後も既存のサービスがすべて残ること", () => {
+    const result = addViewPermissions([viewA, viewB], [viewC]);
+
+    expect(result.map((p) => p.serviceArn)).toContain(viewA.serviceArn);
+    expect(result.map((p) => p.serviceArn)).toContain(viewB.serviceArn);
+  });
+
+  it("空のリストを追加しても一覧が変化しないこと", () => {
+    const result = addViewPermissions([viewA, viewB], []);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.serviceArn)).toEqual([viewA.serviceArn, viewB.serviceArn]);
+  });
+});
+
+describe("addViewPermissions — 重複排除", () => {
+  let viewA: ViewPermission;
+  let viewB: ViewPermission;
+  let viewC: ViewPermission;
+
+  beforeEach(() => {
+    viewA = buildViewPermissionInCluster("prod-cluster", "api-service");
+    viewB = buildViewPermissionInCluster("prod-cluster", "web-service");
+    viewC = buildViewPermissionInCluster("staging-cluster", "api-service");
+  });
+
+  it("既に一覧にあるサービスを再度追加しても一覧に1件しか含まれないこと", () => {
+    const result = addViewPermissions([viewA, viewB], [viewA]);
+
+    expect(result).toHaveLength(2);
+    const arns = result.map((p) => p.serviceArn);
+    expect(arns.filter((a) => a === viewA.serviceArn)).toHaveLength(1);
+  });
+
+  it("追加リスト内に同一サービスが重複していても一覧に1件しか含まれないこと", () => {
+    const result = addViewPermissions([viewA], [viewC, viewC]);
+
+    expect(result).toHaveLength(2);
+    const arns = result.map((p) => p.serviceArn);
+    expect(arns.filter((a) => a === viewC.serviceArn)).toHaveLength(1);
+  });
+});
+
+describe("addViewPermissions — 順序", () => {
+  let viewA: ViewPermission;
+  let viewB: ViewPermission;
+  let viewC: ViewPermission;
+
+  beforeEach(() => {
+    viewA = buildViewPermissionInCluster("prod-cluster", "api-service");
+    viewB = buildViewPermissionInCluster("prod-cluster", "web-service");
+    viewC = buildViewPermissionInCluster("staging-cluster", "api-service");
+  });
+
+  it("追加前の既存サービスの順序が維持されること", () => {
+    const result = addViewPermissions([viewA, viewB], [viewC]);
+
+    expect(result[0].serviceArn).toBe(viewA.serviceArn);
+    expect(result[1].serviceArn).toBe(viewB.serviceArn);
+  });
+
+  it("新しいサービスは既存サービスの後に追加されること", () => {
+    const result = addViewPermissions([viewA, viewB], [viewC]);
+
+    expect(result[result.length - 1].serviceArn).toBe(viewC.serviceArn);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// removeViewPermissions
+// チェックされたサービスを閲覧権限一覧から削除する。
+// ──────────────────────────────────────────────────────────────────
+
+describe("removeViewPermissions — 基本削除", () => {
+  let viewA: ViewPermission;
+  let viewB: ViewPermission;
+  let viewC: ViewPermission;
+
+  beforeEach(() => {
+    viewA = buildViewPermissionInCluster("prod-cluster", "api-service");
+    viewB = buildViewPermissionInCluster("prod-cluster", "web-service");
+    viewC = buildViewPermissionInCluster("staging-cluster", "api-service");
+  });
+
+  it("指定したサービスが一覧から削除されること", () => {
+    const result = removeViewPermissions([viewA, viewB, viewC], [viewB]);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.serviceArn)).not.toContain(viewB.serviceArn);
+  });
+
+  it("複数のサービスを一度に削除できること", () => {
+    const result = removeViewPermissions([viewA, viewB, viewC], [viewA, viewC]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].serviceArn).toBe(viewB.serviceArn);
+  });
+
+  it("削除後も残るべきサービスはすべて変化しないこと", () => {
+    const result = removeViewPermissions([viewA, viewB, viewC], [viewB]);
+
+    expect(result.map((p) => p.serviceArn)).toContain(viewA.serviceArn);
+    expect(result.map((p) => p.serviceArn)).toContain(viewC.serviceArn);
+  });
+});
+
+describe("removeViewPermissions — 境界条件", () => {
+  let viewA: ViewPermission;
+  let viewB: ViewPermission;
+  let viewD: ViewPermission;
+
+  beforeEach(() => {
+    viewA = buildViewPermissionInCluster("prod-cluster", "api-service");
+    viewB = buildViewPermissionInCluster("prod-cluster", "web-service");
+    viewD = buildViewPermissionInCluster("staging-cluster", "batch-service"); // 一覧に存在しない
+  });
+
+  it("存在しないサービスを削除しようとしても一覧が変化しないこと", () => {
+    const result = removeViewPermissions([viewA, viewB], [viewD]);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.serviceArn)).toEqual([viewA.serviceArn, viewB.serviceArn]);
+  });
+
+  it("空の一覧から削除しようとしても空のまま返ること", () => {
+    const result = removeViewPermissions([], [viewA]);
+
+    expect(result).toHaveLength(0);
+  });
+
+  it("空の削除リストを渡しても一覧が変化しないこと", () => {
+    const result = removeViewPermissions([viewA, viewB], []);
+
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.serviceArn)).toEqual([viewA.serviceArn, viewB.serviceArn]);
+  });
+
+  it("一覧にある全サービスを削除すると空配列が返ること", () => {
+    const result = removeViewPermissions([viewA, viewB], [viewA, viewB]);
+
+    expect(result).toHaveLength(0);
   });
 });

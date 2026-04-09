@@ -6,7 +6,7 @@ import type { UserRole } from "@/lib/users/role";
 const SESSION_COOKIE_NAME = "session";
 const SESSION_MAX_AGE = 24 * 60 * 60; // 24時間（秒）
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 

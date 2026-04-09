@@ -9,6 +9,8 @@ import { filterServicesByStatus } from "@/lib/services/filter";
 import type { StatusFilter } from "@/lib/services/filter";
 import type { ServiceInfo } from "@/lib/ecs";
 import type { UserRole } from "@/lib/users/role";
+import { filterServicesByView } from "@/lib/users/permission";
+import type { ViewMode } from "@/lib/users/permission";
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -27,9 +29,11 @@ const ALL_CLUSTERS = { arn: "all", name: "すべてのクラスター" };
 interface Props {
   role: UserRole | null;
   servicePermissions: { serviceArn: string }[];
+  viewMode: ViewMode;
+  viewPermissions: { serviceArn: string }[];
 }
 
-export function ServiceTable({ role, servicePermissions }: Props) {
+export function ServiceTable({ role, servicePermissions, viewMode, viewPermissions }: Props) {
   const [selectedCluster, setSelectedCluster] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -96,8 +100,27 @@ export function ServiceTable({ role, servicePermissions }: Props) {
   const services = serviceData?.services ?? [];
   const clusters = clusterData?.clusters ?? [];
 
+  // 閲覧権限でフィルタ（Admin は全件、Editor/Viewer は viewMode に従う）
+  const viewableServices = filterServicesByView(
+    services,
+    role ?? "Viewer",
+    viewMode,
+    viewPermissions.map((p) => ({
+      clusterArn: "",
+      clusterName: "",
+      serviceArn: p.serviceArn,
+      serviceName: "",
+    })),
+    servicePermissions.map((p) => ({
+      clusterArn: "",
+      clusterName: "",
+      serviceArn: p.serviceArn,
+      serviceName: "",
+    }))
+  );
+
   const filtered = filterServicesByStatus(
-    services.filter((s) => {
+    viewableServices.filter((s) => {
       const matchesCluster =
         selectedCluster === "all" || s.clusterArn === selectedCluster;
       const matchesSearch = s.serviceName

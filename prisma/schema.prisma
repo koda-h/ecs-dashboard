@@ -14,22 +14,45 @@ enum UserRole {
   Viewer
 }
 
+enum ViewMode {
+  ALL
+  SYNC
+  CUSTOM
+}
+
 model User {
   id        String   @id @default(cuid())
   userId    String   @unique // ユーザが設定した半角英数字ID
   email     String   @unique
   password  String   // bcrypt ハッシュ済み
   role      UserRole @default(Viewer)
+  viewMode  ViewMode @default(ALL)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   accountLock         AccountLock?
   passwordResetTokens PasswordResetToken[]
   servicePermissions  ServicePermission[]
+  viewPermissions     ViewPermission[]
 }
 
 // Editor ユーザに付与する ECS サービス操作権限
 model ServicePermission {
+  id          String   @id @default(cuid())
+  userId      String   // User.id (内部ID)
+  clusterArn  String
+  clusterName String
+  serviceArn  String
+  serviceName String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, serviceArn])
+}
+
+// Editor / Viewer ユーザに付与する ECS サービス閲覧権限（viewMode: CUSTOM 時に参照）
+model ViewPermission {
   id          String   @id @default(cuid())
   userId      String   // User.id (内部ID)
   clusterArn  String
