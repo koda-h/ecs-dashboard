@@ -26,7 +26,7 @@ services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - "51432:5432"
+      - "${POSTGRES_HOST_PORT:-51432}:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
@@ -42,8 +42,8 @@ services:
   mailcatcher:
     image: sj26/mailcatcher:latest
     ports:
-      - "12025:1025"  # SMTP
-      - "12080:1080"  # Web UI (http://localhost:1080 でメール確認)
+      - "${SMTP_HOST_PORT:-12025}:1025"  # SMTP
+      - "${SMTP_UI_HOST_PORT:-12080}:1080"  # Web UI (http://localhost:1080 でメール確認)
 
 volumes:
   postgres_data:
