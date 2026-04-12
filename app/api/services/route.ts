@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
     console.error("Failed to list services:", err);
     if (
       err instanceof Error &&
-      err.message.includes("SSO session associated with this profile is invalid")
+      (err.message.includes("SSO session associated with this profile is invalid") ||
+        err.message.includes("Could not load credentials from any providers"))
     ) {
       return NextResponse.json(
         { error: "SSO_SESSION_INVALID" },
