@@ -8,6 +8,92 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                  String               @id @default(cuid())
+  userId              String               @unique
+  email               String               @unique
+  password            String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  role                UserRole             @default(Viewer)
+  viewMode            ViewMode             @default(ALL)
+  webAuthnUserId      String?              @unique
+  accountLock         AccountLock?
+  passwordResetTokens PasswordResetToken[]
+  servicePermissions  ServicePermission[]
+  viewPermissions     ViewPermission[]
+  passkeys            Passkey[]
+}
+
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  deviceType   String
+  backedUp     Boolean   @default(false)
+  transports   String[]
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WebAuthnChallenge {
+  id        String   @id @default(cuid())
+  userId    String?
+  challenge String   @unique
+  type      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model ServicePermission {
+  id          String   @id @default(cuid())
+  userId      String
+  clusterArn  String
+  clusterName String
+  serviceArn  String
+  serviceName String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, serviceArn])
+}
+
+model ViewPermission {
+  id          String   @id @default(cuid())
+  userId      String
+  clusterArn  String
+  clusterName String
+  serviceArn  String
+  serviceName String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, serviceArn])
+}
+
+model AccountLock {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  failureCount Int       @default(0)
+  lockedAt     DateTime?
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 enum UserRole {
   Admin
   Editor
@@ -18,73 +104,4 @@ enum ViewMode {
   ALL
   SYNC
   CUSTOM
-}
-
-model User {
-  id        String   @id @default(cuid())
-  userId    String   @unique // ユーザが設定した半角英数字ID
-  email     String   @unique
-  password  String   // bcrypt ハッシュ済み
-  role      UserRole @default(Viewer)
-  viewMode  ViewMode @default(ALL)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  accountLock         AccountLock?
-  passwordResetTokens PasswordResetToken[]
-  servicePermissions  ServicePermission[]
-  viewPermissions     ViewPermission[]
-}
-
-// Editor ユーザに付与する ECS サービス操作権限
-model ServicePermission {
-  id          String   @id @default(cuid())
-  userId      String   // User.id (内部ID)
-  clusterArn  String
-  clusterName String
-  serviceArn  String
-  serviceName String
-  createdAt   DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, serviceArn])
-}
-
-// Editor / Viewer ユーザに付与する ECS サービス閲覧権限（viewMode: CUSTOM 時に参照）
-model ViewPermission {
-  id          String   @id @default(cuid())
-  userId      String   // User.id (内部ID)
-  clusterArn  String
-  clusterName String
-  serviceArn  String
-  serviceName String
-  createdAt   DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, serviceArn])
-}
-
-// ログイン失敗によるアカウントロック状態
-model AccountLock {
-  id           String    @id @default(cuid())
-  userId       String    @unique // User.id (内部ID)
-  failureCount Int       @default(0)
-  lockedAt     DateTime?
-  updatedAt    DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-// パスワードリセット用トークン（有効期限1時間）
-model PasswordResetToken {
-  id        String    @id @default(cuid())
-  token     String    @unique // SHA-256 ハッシュ済みトークン
-  userId    String    // User.id (内部ID)
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
