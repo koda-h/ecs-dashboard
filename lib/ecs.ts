@@ -10,6 +10,19 @@ const client = new ECSClient({
   region: process.env.AWS_REGION ?? "ap-northeast-1",
 });
 
+const SSO_EXPIRED_PATTERNS = [
+  "SSO session associated with this profile is invalid",
+  "SSO session associated with this profile has expired",
+  "Could not load credentials from any providers",
+];
+
+export function isSsoSessionError(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    SSO_EXPIRED_PATTERNS.some((p) => err.message.includes(p))
+  );
+}
+
 export interface ServiceInfo {
   clusterArn: string;
   clusterName: string;
