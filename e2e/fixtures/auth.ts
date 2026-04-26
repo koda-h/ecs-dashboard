@@ -7,7 +7,7 @@ async function login(page: Page, loginId: string, password: string) {
   await page.goto("/login");
   await page.getByLabel("ユーザID / メールアドレス").fill(loginId);
   await page.getByLabel("パスワード").fill(password);
-  await page.getByRole("button", { name: "ログイン" }).click();
+  await page.getByRole("button", { name: "ログイン", exact: true }).click();
 
   // ログイン成功でダッシュボードへリダイレクトされるのを待つ
   await page.waitForURL("/", { timeout: 15000 });

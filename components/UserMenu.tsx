@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { User, LogOut, Users, Menu } from "lucide-react";
+import { User, LogOut, Users, Menu, KeyRound } from "lucide-react";
 import { logoutAction } from "@/app/actions/logout";
 import type { UserRole } from "@/lib/users/role";
 
@@ -58,6 +58,15 @@ export function UserMenu({ userId, role }: UserMenuProps) {
                   ユーザ一覧
                 </a>
               )}
+
+              <a
+                href="/account/passkeys"
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={() => setOpen(false)}
+              >
+                <KeyRound className="w-4 h-4" />
+                パスキー管理
+              </a>
 
               <form action={logoutAction}>
                 <button

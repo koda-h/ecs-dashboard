@@ -1,49 +1,20 @@
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
-import type {
-  PublicKeyCredentialRequestOptionsJSON,
-  AuthenticatorTransportFuture,
-} from "@simplewebauthn/server";
+import type { PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/server";
 import { prisma } from "@/lib/db";
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000; // 5分
 
 /**
- * identifier-first 方式でパスキー認証オプションを生成する。
- * loginId（userId または email）でユーザを検索し allowCredentials を構成する。
- *
- * ユーザ列挙防止:
- * - ユーザが存在しない場合
- * - パスキーが未登録の場合
- * どちらも同一のエラーメッセージを返す。
- *
- * AccountLock の対象外（パスワード試行ロックとは独立している）。
+ * Discoverable credentials（resident key）方式でパスキー認証オプションを生成する。
+ * allowCredentials を渡さないことで OS のパスキーピッカーが起動し、
+ * ユーザは loginId を入力せずにパスキーを選択できる。
+ * ユーザの特定は verify 後に credentialId から行う。
  */
-export async function generatePasskeyAuthenticationOptions(
-  loginId: string
-): Promise<PublicKeyCredentialRequestOptionsJSON> {
-  const user = await prisma.user.findFirst({
-    where: { OR: [{ userId: loginId }, { email: loginId }] },
-    select: {
-      passkeys: {
-        select: { credentialId: true, transports: true },
-      },
-    },
-  });
-
-  // ユーザ列挙防止: 不存在とパスキー未登録を同一エラーで返す
-  if (!user || user.passkeys.length === 0) {
-    throw new Error("パスキーが見つかりません");
-  }
-
+export async function generatePasskeyAuthenticationOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
   const options = await generateAuthenticationOptions({
     rpID: process.env.RP_ID ?? "localhost",
-    allowCredentials: user.passkeys.map((p) => ({
-      id: p.credentialId,
-      transports: p.transports as AuthenticatorTransportFuture[],
-    })),
   });
 
-  // チャレンジを DB に保存（userId: null — ユーザは verify で credentialId から特定する）
   await prisma.webAuthnChallenge.create({
     data: {
       challenge: options.challenge,
