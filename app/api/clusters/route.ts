@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listClusters } from "@/lib/ecs";
+import { listClusters, isSsoSessionError } from "@/lib/ecs";
 
 export async function GET() {
   try {
@@ -11,11 +11,7 @@ export async function GET() {
     return NextResponse.json({ clusters });
   } catch (err) {
     console.error("Failed to list clusters:", err);
-    if (
-      err instanceof Error &&
-      (err.message.includes("SSO session associated with this profile is invalid") ||
-        err.message.includes("Could not load credentials from any providers"))
-    ) {
+    if (isSsoSessionError(err)) {
       return NextResponse.json(
         { error: "SSO_SESSION_INVALID" },
         { status: 401 }

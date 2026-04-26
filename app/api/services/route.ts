@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listClusters, listServicesForCluster } from "@/lib/ecs";
+import { listClusters, listServicesForCluster, isSsoSessionError } from "@/lib/ecs";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -22,11 +22,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ services });
   } catch (err) {
     console.error("Failed to list services:", err);
-    if (
-      err instanceof Error &&
-      (err.message.includes("SSO session associated with this profile is invalid") ||
-        err.message.includes("Could not load credentials from any providers"))
-    ) {
+    if (isSsoSessionError(err)) {
       return NextResponse.json(
         { error: "SSO_SESSION_INVALID" },
         { status: 401 }
